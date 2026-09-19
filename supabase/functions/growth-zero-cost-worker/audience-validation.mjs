@@ -89,6 +89,7 @@ export function validateAudienceCandidate(input) {
   const softwareHits = countHits(text, SOFTWARE_TERMS)
   const advisoryHits = countHits(text, ADVISORY_TERMS)
   const assetOperatorHits = countHits(text, ASSET_OPERATOR_TERMS)
+  const consultingIdentity = /consult/.test(domain) || /\b(logistics|supply chain) consult(?:ing|ancy|ant|ants)?\b/.test(text)
   const providerPhrase = /\b(logistics (company|provider|operator)|freight forwarder|shipping company|transport company|3pl provider|4pl provider|customs broker)\b/.test(text)
     || /(شركة.{0,28}(لوجست|شحن|نقل)|مزود.{0,28}لوجست|مقدم.{0,28}خدمات لوجست)/.test(text)
   const geographyMatch = !isSaudiGeography(String(input.geography || '')) || hasAny(text, SAUDI_TERMS)
@@ -99,11 +100,15 @@ export function validateAudienceCandidate(input) {
   if (softwareHits) evidence.push(`software_hits:${softwareHits}`)
   if (advisoryHits) evidence.push(`advisory_hits:${advisoryHits}`)
   if (assetOperatorHits) evidence.push(`asset_operator_hits:${assetOperatorHits}`)
+  if (consultingIdentity) evidence.push('consulting_identity')
   if (providerPhrase) evidence.push('provider_phrase')
   if (geographyMatch) evidence.push('geography_match')
 
   if (publisherHits >= 2 && operatorHits === 0 && !providerPhrase) {
     return { decision: 'reject', reason: 'non_company_source', score: 0.15, evidence }
+  }
+  if (consultingIdentity && assetOperatorHits === 0 && !providerPhrase) {
+    return { decision: 'reject', reason: 'sector_mismatch', score: 0.16, evidence }
   }
   if (advisoryHits >= 2 && assetOperatorHits === 0 && !providerPhrase) {
     return { decision: 'reject', reason: 'sector_mismatch', score: 0.18, evidence }
