@@ -20,18 +20,32 @@ const LOGISTICS_SERVICE_TERMS = [
   'fulfillment','fulfilment','customs clearance','customs brokerage','project logistics','cold chain',
   'contract logistics','distribution logistics','supply chain solutions','container transport',
   'courier services','express delivery','fleet services','refrigerated transport','distribution',
+  'خدمات لوجستية','الخدمات اللوجستية','مناولة الشحن','الشحن الجوي','الشحن البحري',
+  'التخزين','المستودعات','النقل البري','التخليص الجمركي','سلسلة الإمداد','الشحن والنقل',
 ];
 
 const OPERATOR_TERMS = [
   'our services','we provide','we offer','we deliver','we specialize','we specialise','our fleet',
   'our warehouse','our warehouses','our network','our branches','our locations','contact us','about us',
   'who we are','our company','our offices','our terminals','our facilities','our customers','our clients',
+  'خدماتنا','نقدم','نوفر','حلولنا','تواصل معنا','من نحن','مرافقنا','مستودعاتنا','شبكتنا',
 ];
 
 const PUBLISHER_TERMS = [
   'market size','market report','market research','industry report','forecast 20','research article',
   'peer reviewed','journal','abstract','doi:','directory','top logistics companies',
   'best logistics companies','list of logistics companies','members directory','compare providers',
+];
+
+const ADVISORY_TERMS = [
+  'consulting','consultancy','advisory services','strategy consulting','feasibility studies',
+  'market entry','market assessment','partner identification','value chain analysis',
+];
+
+const ASSET_OPERATOR_TERMS = [
+  'our fleet','our warehouse','our warehouses','our terminals','cargo terminal','our facilities',
+  'we transport','we ship','we handle cargo','we deliver shipments','we move cargo',
+  'أسطولنا','مستودعاتنا','مرافقنا','مناولة الشحن','ننقل الشحنات','نقوم بالشحن',
 ];
 
 const SOFTWARE_TERMS = [
@@ -73,18 +87,26 @@ export function validateAudienceCandidate(input) {
   const operatorHits = countHits(text, OPERATOR_TERMS)
   const publisherHits = countHits(text, PUBLISHER_TERMS)
   const softwareHits = countHits(text, SOFTWARE_TERMS)
+  const advisoryHits = countHits(text, ADVISORY_TERMS)
+  const assetOperatorHits = countHits(text, ASSET_OPERATOR_TERMS)
   const providerPhrase = /\b(logistics (company|provider|operator)|freight forwarder|shipping company|transport company|3pl provider|4pl provider|customs broker)\b/.test(text)
+    || /(شركة.{0,28}(لوجست|شحن|نقل)|مزود.{0,28}لوجست|مقدم.{0,28}خدمات لوجست)/.test(text)
   const geographyMatch = !isSaudiGeography(String(input.geography || '')) || hasAny(text, SAUDI_TERMS)
 
   if (serviceHits) evidence.push(`service_hits:${serviceHits}`)
   if (operatorHits) evidence.push(`operator_hits:${operatorHits}`)
   if (publisherHits) evidence.push(`publisher_hits:${publisherHits}`)
   if (softwareHits) evidence.push(`software_hits:${softwareHits}`)
+  if (advisoryHits) evidence.push(`advisory_hits:${advisoryHits}`)
+  if (assetOperatorHits) evidence.push(`asset_operator_hits:${assetOperatorHits}`)
   if (providerPhrase) evidence.push('provider_phrase')
   if (geographyMatch) evidence.push('geography_match')
 
   if (publisherHits >= 2 && operatorHits === 0 && !providerPhrase) {
     return { decision: 'reject', reason: 'non_company_source', score: 0.15, evidence }
+  }
+  if (advisoryHits >= 2 && assetOperatorHits === 0 && !providerPhrase) {
+    return { decision: 'reject', reason: 'sector_mismatch', score: 0.18, evidence }
   }
   if (softwareHits >= 1 && operatorHits === 0 && !providerPhrase) {
     return { decision: 'reject', reason: 'sector_mismatch', score: 0.20, evidence }
