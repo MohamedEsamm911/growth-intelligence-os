@@ -168,7 +168,7 @@ async function setCandidateOutcome(seedId: string, status: 'researched' | 'rejec
   if (error) throw error
 }
 
-const VALIDATION_VERSION = 'sector-fit-v4'
+const VALIDATION_VERSION = 'sector-fit-v5'
 
 async function markCandidateValidation(seedId: string, validation: any) {
   const { error } = await supabase.from('growth_live_candidates')
