@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
-import { extractCompanyPage, extractCompanyText, isPublicHttpUrl } from './worker-core.ts'\nimport { validateAudienceCandidate, buildAudienceExpansionQueryPlan } from './audience-validation.mjs'
+import { extractCompanyPage, extractCompanyText, isPublicHttpUrl } from './worker-core.ts'
+import { validateAudienceCandidate, buildAudienceExpansionQueryPlan } from './audience-validation.mjs'
 
 const url = Deno.env.get('SUPABASE_URL')!
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -300,7 +301,8 @@ const BLOCKED_DISCOVERY_DOMAINS = [
   'goodfirms.co','clutch.co','crunchbase.com','zoominfo.com','apollo.io','glassdoor.com','indeed.com',
   'mot.gov.sa','tga.gov.sa','google.com','maps.google.com','mapquest.com','yelp.com','yellowpages.com',
   'mordorintelligence.com','ruzave.com','gulftalent.com','freightnet.com','fiata.org','themanifest.com',
-  'racklify.com','ensun.io','aeroleads.com','f6s.com','clickpost.ai','scribd.com','infobelpro.com',\n  'quora.com','pmc.ncbi.nlm.nih.gov','ncbi.nlm.nih.gov','imarcgroup.com','kenresearch.com','techsciresearch.com','revenuebase.ai','foodlogistics.com','pl-alliance.com'
+  'racklify.com','ensun.io','aeroleads.com','f6s.com','clickpost.ai','scribd.com','infobelpro.com',
+  'quora.com','pmc.ncbi.nlm.nih.gov','ncbi.nlm.nih.gov','imarcgroup.com','kenresearch.com','techsciresearch.com','revenuebase.ai','foodlogistics.com','pl-alliance.com'
 ]
 
 function normalizeCandidateDomain(rawUrl: string): string | null {
@@ -725,7 +727,8 @@ Deno.serve(async (req: Request) => {
   const limit = Math.max(1, Math.min(Number(body.limit || 3), 5))
   const mode = String(body.mode || 'research')
   if (mode === 'discover') return Response.json(await runDiscovery(limit))
-  if (mode === 'research') return Response.json(await runResearch(limit))\n  if (mode === 'revalidate_audience') return Response.json(await revalidateAudience(body))
+  if (mode === 'research') return Response.json(await runResearch(limit))
+  if (mode === 'revalidate_audience') return Response.json(await revalidateAudience(body))
   if (mode === 'expand_audience') return Response.json(await expandAudience(body))
   if (mode === 'build_audience') return Response.json(await buildAudience(body))
   if (mode === 'places_ids') return Response.json(await runGooglePlacesIdsSearch(String(body.query || '')))
