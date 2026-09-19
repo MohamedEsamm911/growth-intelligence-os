@@ -4,7 +4,7 @@ const NON_COMPANY_DOMAINS = [
   'imarcgroup.com','kenresearch.com','techsciresearch.com','mordorintelligence.com',
   'grandviewresearch.com','marketsandmarkets.com','fortunebusinessinsights.com',
   'revenuebase.ai','goodfirms.co','clutch.co','themanifest.com','freightnet.com',
-  'fiata.org','pl-alliance.com','foodlogistics.com','logisticsmgmt.com',
+  'fiata.org','pl-alliance.com','foodlogistics.com','logisticsmgmt.com','gulftalent.com',
 ];
 
 const SAUDI_TERMS = [
@@ -56,6 +56,9 @@ const SOFTWARE_TERMS = [
 function domainOf(rawUrl) {
   try { return new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' }
 }
+function pathOf(rawUrl) {
+  try { return new URL(rawUrl).pathname.toLowerCase() } catch { return '' }
+}
 function hasAny(text, terms) { return terms.some(term => text.includes(term)) }
 function countHits(text, terms) { return terms.reduce((n, term) => n + (text.includes(term) ? 1 : 0), 0) }
 function isNonCompanyDomain(domain) {
@@ -67,12 +70,20 @@ export function validateAudienceCandidate(input) {
   const sector = String(input.sector || '').toLowerCase().trim()
   const rawUrl = String(input.sourceUrl || input.url || '')
   const domain = domainOf(rawUrl)
+  const path = pathOf(rawUrl)
+  const titleText = String(input.title || '').toLowerCase()
   const text = [input.title, input.description, input.text]
     .filter(Boolean).join('\n').toLowerCase().replace(/\s+/g, ' ').slice(0, 160_000)
   const evidence = []
 
   if (!domain || isNonCompanyDomain(domain)) {
     return { decision: 'reject', reason: 'non_company_source', score: 0.05, evidence: ['blocked_non_company_domain'] }
+  }
+
+  const listIdentity = /\b(top|best|list of)\b.{0,40}\blogistics companies\b/.test(titleText)
+    || /\/(companies\/industry|directory|company-list|top-logistics|best-logistics)/.test(path)
+  if (listIdentity) {
+    return { decision: 'reject', reason: 'non_company_source', score: 0.08, evidence: ['list_directory_identity'] }
   }
 
   if (!/logistic|لوجست/.test(sector)) {
