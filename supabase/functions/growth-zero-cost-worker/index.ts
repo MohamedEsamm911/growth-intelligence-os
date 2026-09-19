@@ -168,7 +168,7 @@ async function setCandidateOutcome(seedId: string, status: 'researched' | 'rejec
   if (error) throw error
 }
 
-const VALIDATION_VERSION = 'sector-fit-v2'
+const VALIDATION_VERSION = 'sector-fit-v3'
 
 async function markCandidateValidation(seedId: string, validation: any) {
   const { error } = await supabase.from('growth_live_candidates')
@@ -605,9 +605,9 @@ async function revalidateAudience(body: any) {
   if (request.error || !request.data) throw new Error('request_not_found')
 
   const candidates = await supabase.from('growth_live_candidates')
-    .select('candidate_id,seed_id,source_url,company_name')
+    .select('candidate_id,seed_id,source_url,company_name,status')
     .eq('request_id', requestId)
-    .eq('status', 'researched')
+    .in('status', ['researched','rejected'])
     .or(`validation_version.is.null,validation_version.neq.${VALIDATION_VERSION}`)
     .not('seed_id', 'is', null)
     .order('source_rank', { ascending: true })
@@ -630,15 +630,45 @@ async function revalidateAudience(body: any) {
         description: extracted.description,
         text: extracted.contentHashInput,
       })
+
       if (validation.decision === 'reject') {
         await setCandidateOutcome(seedId, 'rejected', Number(validation.score || 0), String(validation.reason || 'rejected'))
+      } else if (candidate.status === 'rejected') {
+        const job = await supabase.from('growth_live_jobs')
+          .select('job_id')
+          .eq('seed_id', seedId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (job.error || !job.data?.job_id) throw new Error('reingest_job_missing')
+
+        await setCandidateOutcome(seedId, 'researched', Number(validation.score || 0), null)
+        try {
+          const hash = await sha256(extracted.contentHashInput)
+          const ingest = await supabase.rpc('growth_live_ingest_fetch', {
+            p_seed_id: seedId,
+            p_job_id: job.data.job_id,
+            p_url: extracted.canonicalUrl,
+            p_title: extracted.title,
+            p_description: extracted.description,
+            p_content_hash: hash,
+            p_emails: extracted.emails,
+            p_signal_types: extracted.signalTypes,
+          })
+          if (ingest.error) throw ingest.error
+        } catch (error) {
+          await setCandidateOutcome(seedId, 'rejected', Number(validation.score || 0), 'reingest_failed')
+          throw error
+        }
       } else {
         await setCandidateOutcome(seedId, 'researched', Number(validation.score || 0), null)
       }
+
       await markCandidateValidation(seedId, validation)
       results.push({
         candidateId: candidate.candidate_id,
         companyName: candidate.company_name,
+        previousStatus: candidate.status,
         ok: true,
         decision: validation.decision,
         reason: validation.reason,
@@ -650,6 +680,7 @@ async function revalidateAudience(body: any) {
       results.push({
         candidateId: candidate.candidate_id,
         companyName: candidate.company_name,
+        previousStatus: candidate.status,
         ok: false,
         code: boundedCode(error),
       })
@@ -660,8 +691,10 @@ async function revalidateAudience(body: any) {
     supabase.from('growth_live_candidates').select('candidate_id', { count: 'exact', head: true }).eq('request_id', requestId).eq('status', 'researched'),
     supabase.from('growth_live_candidates').select('candidate_id', { count: 'exact', head: true }).eq('request_id', requestId).eq('status', 'rejected'),
     supabase.from('growth_live_candidates').select('candidate_id', { count: 'exact', head: true })
-      .eq('request_id', requestId).eq('status', 'researched')
-      .or(`validation_version.is.null,validation_version.neq.${VALIDATION_VERSION}`),
+      .eq('request_id', requestId)
+      .in('status', ['researched','rejected'])
+      .or(`validation_version.is.null,validation_version.neq.${VALIDATION_VERSION}`)
+      .not('seed_id', 'is', null),
   ])
   for (const q of [verified, rejected, remaining]) if (q.error) throw q.error
 
@@ -669,6 +702,7 @@ async function revalidateAudience(body: any) {
   return {
     ok: true,
     mode: 'revalidate_audience',
+    validationVersion: VALIDATION_VERSION,
     requestId,
     processed: results.length,
     accepted: results.filter(x => x.ok && x.decision === 'accept').length,
